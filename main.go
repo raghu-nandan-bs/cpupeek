@@ -31,6 +31,7 @@ var numCpus int = 0
 var trackPID int64 = -1
 var trackCPU int64 = -1
 var trueScale bool = false
+var showItems int = 20
 
 var logFile string
 var logger logf.Logger
@@ -40,6 +41,8 @@ func init() {
 	flag.Int64Var(&trackCPU, "cpu", -1, "cpu to track")
 	flag.BoolVar(&trueScale, "true-scale", false, "scale the barchart to 1s")
 	flag.StringVar(&logFile, "log", "cpupeek.log", "log file to write to")
+	flag.IntVar(&showItems, "show-items", 20, "number of items to show in the barchart")
+
 	flag.Parse()
 
 	// open log file in append mode

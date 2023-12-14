@@ -15,8 +15,7 @@ import (
 )
 
 var max int = 1 // 1 * 1000 * 1000 * 1000 // max value for the barchart
-
-var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
+var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 -]+`)
 
 func clearString(str string) string {
 	return nonAlphanumericRegex.ReplaceAllString(str, "")
@@ -61,7 +60,6 @@ func displayChart(plottingFunction func(ctx context.Context, bc *barchart.BarCha
 }
 
 func procsTotalTimePlotter(ctx context.Context, bc *barchart.BarChart) {
-	var maxItems = 20
 
 	for {
 
@@ -81,10 +79,10 @@ func procsTotalTimePlotter(ctx context.Context, bc *barchart.BarChart) {
 			values = append(values, runtime)
 
 			if trackPID > 0 {
-				key = fmt.Sprintf("%d", procData[idx].(runtime_t).cpuID) // clearString(string(procData[idx].(runtime_t).cpuID))
+				key = fmt.Sprintf("%d", procData[idx].(runtime_t).cpuID)
 				logger.Debug("key: " + key)
 			} else {
-				key = procData[idx].(runtime_t).comm
+				key = clearString(procData[idx].(runtime_t).comm)
 			}
 			key = key
 			keys = append(keys, key)
@@ -92,7 +90,7 @@ func procsTotalTimePlotter(ctx context.Context, bc *barchart.BarChart) {
 				max = int(procData[idx].(runtime_t).Time)
 			}
 			itemsProcessed++
-			if itemsProcessed >= maxItems {
+			if itemsProcessed >= showItems {
 				break
 			}
 		}
