@@ -22,7 +22,7 @@ const volatile int64_t pid, cpu = -1;
 
 struct {
     __uint(type, BPF_MAP_TYPE_LRU_PERCPU_HASH);
-    __uint(max_entries, 100); // we cant really display anything more on screen meaningfully. 
+    __uint(max_entries, 500); // we cant really display anything more on screen meaningfully. 
     __type(key, __u32); // __pid
     __type(value, struct runtime_info_t); 
 }runtime_arr SEC(".maps");
