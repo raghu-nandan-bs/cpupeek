@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
+	"regexp"
 
 	"github.com/emirpasic/gods/maps/treebidimap"
 	"github.com/mum4k/termdash"
@@ -15,6 +15,12 @@ import (
 )
 
 var max int = 1 // 1 * 1000 * 1000 * 1000 // max value for the barchart
+
+var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
+
+func clearString(str string) string {
+	return nonAlphanumericRegex.ReplaceAllString(str, "")
+}
 
 func displayChart(plottingFunction func(ctx context.Context, bc *barchart.BarChart)) {
 	t, err := tcell.New()
@@ -55,47 +61,44 @@ func displayChart(plottingFunction func(ctx context.Context, bc *barchart.BarCha
 }
 
 func procsTotalTimePlotter(ctx context.Context, bc *barchart.BarChart) {
-	const maxItems = 20
+	var maxItems = 20
 
 	for {
-		var __processesWithRuntime *treebidimap.Map
 
+		var __processesWithRuntime *treebidimap.Map
 		__processesWithRuntime = <-processesWithRuntime
+		var key string
 		var keys []string
 		var values []int
-
 		procData := __processesWithRuntime.Values()
 
 		itemsProcessed := 0
 		for i := range procData {
-			if trackPID > 0 {
-				values = append(values, int(procData[len(procData)-i-1].(CPUTimeAggrByCPU).Time))
-				key := fmt.Sprintf("%d", procData[len(procData)-i-1].(CPUTimeAggrByCPU).cpuID)
 
-				keys = append(keys, key)
-				if int(procData[len(procData)-i-1].(CPUTimeAggrByCPU).Time) > max {
-					max = int(procData[len(procData)-i-1].(CPUTimeAggrByCPU).Time)
-				}
-				itemsProcessed++
-				if itemsProcessed >= maxItems {
-					break
-				}
+			idx := len(procData) - i - 1
+			runtime := int(procData[idx].(runtime_t).Time)
+
+			values = append(values, runtime)
+
+			if trackPID > 0 {
+				key = fmt.Sprintf("%d", procData[idx].(runtime_t).cpuID) // clearString(string(procData[idx].(runtime_t).cpuID))
+				logger.Debug("key: " + key)
 			} else {
-				values = append(values, int(procData[len(procData)-i-1].(CPUTimeAggrByProcess).Time))
-				key := strings.Replace(procData[len(procData)-i-1].(CPUTimeAggrByProcess).ProcessName, "\x00", "", -1)
-				keys = append(keys, key)
-				if int(procData[len(procData)-i-1].(CPUTimeAggrByProcess).Time) > max {
-					max = int(procData[len(procData)-i-1].(CPUTimeAggrByProcess).Time)
-				}
-				itemsProcessed++
-				if itemsProcessed >= maxItems {
-					break
-				}
+				key = clearString(procData[idx].(runtime_t).comm)
+			}
+			key = key
+			keys = append(keys, key)
+			if int(procData[idx].(runtime_t).Time) > max {
+				max = int(procData[idx].(runtime_t).Time)
+			}
+			itemsProcessed++
+			if itemsProcessed >= maxItems {
+				break
 			}
 		}
-		options := barchart.Labels(keys)
+		labelOptions := barchart.Labels(keys)
 
-		if err := bc.Values(values, max, options); err != nil {
+		if err := bc.Values(values, max, labelOptions); err != nil {
 			panic(err)
 		}
 		select {

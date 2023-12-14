@@ -30,6 +30,7 @@ var (
 var numCpus int = 0
 var trackPID int64 = -1
 var trackCPU int64 = -1
+var trueScale bool = false
 
 var logFile string
 var logger logf.Logger
@@ -37,7 +38,7 @@ var logger logf.Logger
 func init() {
 	flag.Int64Var(&trackPID, "pid", -1, "pid to track")
 	flag.Int64Var(&trackCPU, "cpu", -1, "cpu to track")
-
+	flag.BoolVar(&trueScale, "true-scale", false, "scale the barchart to 1s")
 	flag.StringVar(&logFile, "log", "cpupeek.log", "log file to write to")
 	flag.Parse()
 
@@ -56,6 +57,11 @@ func init() {
 		EnableCaller:         true,
 		TimestampFormat:      time.RFC3339Nano,
 	})
+
+	// if trueScale is enabled, max should be 1s
+	if trueScale {
+		max = 1000000000
+	}
 
 }
 
@@ -109,11 +115,7 @@ func run(module *libbpfgo.Module) {
 		for {
 			select {
 			case <-timer.C:
-				if trackPID > 0 {
-					processesByCPUFromBPFMap(runtime_arr)
-				} else {
-					processesByRuntimeFromBPFMap(runtime_arr)
-				}
+				processData(runtime_arr)
 			case <-ctx.Done():
 				return
 			}

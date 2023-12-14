@@ -10,6 +10,12 @@ import (
 	"github.com/prometheus/procfs"
 )
 
+const (
+	commBitLength    = 16
+	cpuIDBitLength   = 8
+	runtimeBitLength = 8
+)
+
 // Generic helpers
 func cpuCount() int {
 	fs, err := procfs.NewFS("/proc")
@@ -22,37 +28,15 @@ func cpuCount() int {
 
 var processesWithRuntime = make(chan *treebidimap.Map, 2)
 
-type CPUTime struct {
-	CPU         uint16
-	Time        uint64
-	ProcessName string
-	pid         int
-}
-
-func cpuTimeByRuntime(this, other interface{}) int {
-	__this := this.(CPUTime)
-	__other := other.(CPUTime)
-	if __this.Time < __other.Time {
-		return -1
-	} else if __this.Time > __other.Time {
-		return 1
-	}
-	return 0
-}
-
-type CPUTimeAggrByProcess struct {
-	ProcessName string
-	Time        uint64
-}
-
-type CPUTimeAggrByCPU struct {
+type runtime_t struct {
+	comm  string
 	cpuID uint16
 	Time  uint64
 }
 
-func sortCpuTimeAggrByProcess(this, other interface{}) int {
-	__this := this.(CPUTimeAggrByProcess)
-	__other := other.(CPUTimeAggrByProcess)
+func sortRuntime(this, other interface{}) int {
+	__this := this.(runtime_t)
+	__other := other.(runtime_t)
 	if __this.Time < __other.Time {
 		return -1
 	} else if __this.Time > __other.Time {
@@ -61,86 +45,85 @@ func sortCpuTimeAggrByProcess(this, other interface{}) int {
 	return 0
 }
 
-func sortCpuTimeAggrByCPU(this, other interface{}) int {
-	__this := this.(CPUTimeAggrByCPU)
-	__other := other.(CPUTimeAggrByCPU)
-	if __this.Time < __other.Time {
-		return -1
-	} else if __this.Time > __other.Time {
-		return 1
-	}
-	return 0
-}
+func processData(processRuntimeMap *libbpfgo.BPFMap) {
 
-func processesByCPUFromBPFMap(runtimeMap *libbpfgo.BPFMap) {
-	var procs *treebidimap.Map = treebidimap.NewWith(utils.UInt16Comparator, sortCpuTimeAggrByCPU)
-	sizeOfComm := 16
-	sizeOfCpuID := 8
-	sizeOfTotalRuntime := 8
+	var procs *treebidimap.Map = newBTreeMap()
+	dataStream := processRuntimeMap.Iterator()
 
-	iter := runtimeMap.Iterator()
-	for iter.Next() {
+	for dataStream.Next() {
 		var pid uint32
-		pid = binary.LittleEndian.Uint32(iter.Key())
-
+		pid = binary.LittleEndian.Uint32(dataStream.Key())
 		rawValue := make([]byte, 32*numCpus)
-		err := runtimeMap.GetValueReadInto(unsafe.Pointer(&pid), &rawValue)
 
+		err := processRuntimeMap.GetValueReadInto(
+			unsafe.Pointer(&pid),
+			&rawValue,
+		)
 		if err != nil {
-			logger.Error("failed to get comm value:" + err.Error())
+			logger.Error("failed to runtime data:" + err.Error())
 		}
 
 		for i := 0; i < numCpus*32; i = i + 32 {
-			totalRuntime := binary.LittleEndian.Uint64(rawValue[i+sizeOfComm+sizeOfCpuID : i+sizeOfComm+sizeOfCpuID+sizeOfTotalRuntime])
-
-			__cpuID := binary.LittleEndian.Uint16(rawValue[i+sizeOfComm : i+sizeOfComm+sizeOfCpuID])
-			if totalRuntime > 0 {
-				val, found := procs.Get(__cpuID)
-				if found {
-					// update the value
-					totalRuntime += val.(CPUTimeAggrByCPU).Time
-				}
-
-				procs.Put(__cpuID, CPUTimeAggrByCPU{cpuID: __cpuID, Time: totalRuntime})
+			runtimeInfo := extract(rawValue[i : i+32])
+			if trackPID > 0 {
+				storeByCPU(procs, runtimeInfo)
+			} else {
+				storeByProcess(procs, runtimeInfo)
 			}
 		}
-		runtimeMap.DeleteKey(unsafe.Pointer(&pid))
+		processRuntimeMap.DeleteKey(unsafe.Pointer(&pid))
 	}
 	processesWithRuntime <- procs
-
 }
 
-func processesByRuntimeFromBPFMap(runtimeMap *libbpfgo.BPFMap) {
-	var procs *treebidimap.Map = treebidimap.NewWith(utils.StringComparator, sortCpuTimeAggrByProcess)
-	sizeOfComm := 16
-	sizeOfCpuID := 8
-	sizeOfTotalRuntime := 8
+func extract(rawValue []byte) runtime_t {
 
-	iter := runtimeMap.Iterator()
-	for iter.Next() {
-		var pid uint32
-		pid = binary.LittleEndian.Uint32(iter.Key())
-
-		rawValue := make([]byte, 32*numCpus)
-		err := runtimeMap.GetValueReadInto(unsafe.Pointer(&pid), &rawValue)
-
-		if err != nil {
-			logger.Error("failed to get comm value:" + err.Error())
+	runtime := binary.LittleEndian.Uint64(rawValue[commBitLength+cpuIDBitLength : commBitLength+cpuIDBitLength+runtimeBitLength])
+	if runtime == 0 {
+		return runtime_t{
+			Time: 0,
 		}
-		for i := 0; i < numCpus*32; i = i + 32 {
-			comm := string(rawValue[i : i+sizeOfComm])
-			totalRuntime := binary.LittleEndian.Uint64(rawValue[i+sizeOfComm+sizeOfCpuID : i+sizeOfComm+sizeOfCpuID+sizeOfTotalRuntime])
-
-			if totalRuntime > 0 {
-				val, found := procs.Get(comm)
-				if found {
-					totalRuntime += val.(CPUTimeAggrByProcess).Time
-				}
-				procs.Put(comm, CPUTimeAggrByProcess{ProcessName: comm, Time: totalRuntime})
-			}
-		}
-		runtimeMap.DeleteKey(unsafe.Pointer(&pid))
 	}
-	processesWithRuntime <- procs
+	cpuId := binary.LittleEndian.Uint16(rawValue[commBitLength : commBitLength+cpuIDBitLength])
+	comm := string(rawValue[:commBitLength])
+	return runtime_t{
+		comm:  comm,
+		cpuID: cpuId,
+		Time:  runtime,
+	}
+}
 
+func storeByProcess(
+	mapStore *treebidimap.Map,
+	runtimeInfo runtime_t,
+) {
+	currentValue, exists := mapStore.Get(runtimeInfo.comm)
+	if !exists {
+		mapStore.Put(runtimeInfo.comm, runtimeInfo)
+		return
+	}
+	updatedValue := currentValue.(runtime_t)
+	updatedValue.Time += runtimeInfo.Time
+	mapStore.Put(runtimeInfo.comm, updatedValue)
+}
+
+func storeByCPU(
+	mapStore *treebidimap.Map,
+	runtimeInfo runtime_t,
+) {
+	currentValue, exists := mapStore.Get(runtimeInfo.cpuID)
+	if !exists {
+		mapStore.Put(runtimeInfo.cpuID, runtimeInfo)
+		return
+	}
+	updatedValue := currentValue.(runtime_t)
+	updatedValue.Time += runtimeInfo.Time
+	mapStore.Put(runtimeInfo.cpuID, updatedValue)
+}
+
+func newBTreeMap() *treebidimap.Map {
+	if trackPID > 0 {
+		return treebidimap.NewWith(utils.UInt16Comparator, sortRuntime)
+	}
+	return treebidimap.NewWith(utils.StringComparator, sortRuntime)
 }
