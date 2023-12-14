@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"fmt"
 	"unsafe"
 
 	"github.com/aquasecurity/libbpfgo"
@@ -65,6 +66,7 @@ func processData(processRuntimeMap *libbpfgo.BPFMap) {
 
 		for i := 0; i < numCpus*32; i = i + 32 {
 			runtimeInfo := extract(rawValue[i : i+32])
+			runtimeInfo.comm = fmt.Sprintf("[%d]%s", pid, runtimeInfo.comm) // preserve uniquess
 			if trackPID > 0 {
 				storeByCPU(procs, runtimeInfo)
 			} else {
