@@ -19,3 +19,13 @@
 
 # Go workspace file
 go.work
+
+vendor
+
+cpupeek
+cpupeek.log
+
+*.o
+build/
+
+libbpf/
