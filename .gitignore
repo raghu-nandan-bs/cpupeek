@@ -29,3 +29,5 @@ cpupeek.log
 build/
 
 libbpf/
+
+vmlinux.h
