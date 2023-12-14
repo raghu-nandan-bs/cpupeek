@@ -84,7 +84,7 @@ func procsTotalTimePlotter(ctx context.Context, bc *barchart.BarChart) {
 				key = fmt.Sprintf("%d", procData[idx].(runtime_t).cpuID) // clearString(string(procData[idx].(runtime_t).cpuID))
 				logger.Debug("key: " + key)
 			} else {
-				key = clearString(procData[idx].(runtime_t).comm)
+				key = procData[idx].(runtime_t).comm
 			}
 			key = key
 			keys = append(keys, key)
