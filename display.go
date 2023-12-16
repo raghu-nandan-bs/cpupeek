@@ -61,42 +61,53 @@ func procsTotalTimePlotter(ctx context.Context, bc *barchart.BarChart) {
 
 		var __processesWithRuntime *treebidimap.Map
 		__processesWithRuntime = <-processesWithRuntime
-		var key string
 		var keys []string
 		var values []int
 		var barColors []cell.Color
-		procData := __processesWithRuntime.Values()
-		pids := __processesWithRuntime.Keys()
 
 		itemsProcessed := 0
-		for i := range procData {
 
-			idx := len(procData) - i - 1
-			runtime := int(procData[idx].(runtime_t).Time)
+		processElement := func(runtime_o runtime_t) {
+
+			pid := runtime_o.pid
+
+			logger.Info(fmt.Sprintf("Processing item: %d, val: %v", pid, runtime_o))
+
+			runtime := int(runtime_o.Time)
 
 			barColors = append(barColors, getColor(runtime))
 
 			values = append(values, runtime)
+			var __key string
 
 			if trackPID > 0 {
-				key = fmt.Sprintf("%d", procData[idx].(runtime_t).cpuID)
+				__key = fmt.Sprintf("%d", runtime_o.cpuID)
 			} else {
 				if showPIDs {
-					key = fmt.Sprintf("%d", pids[idx])
+					__key = fmt.Sprintf("%d", pid)
 				} else {
-					key = strings.Replace(procData[idx].(runtime_t).comm, "\x00", "", -1)
+					__key = strings.Replace(runtime_o.comm, "\x00", "", -1)
 				}
 			}
-			key = key
-			keys = append(keys, key)
-			if int(procData[idx].(runtime_t).Time) > max {
-				max = int(procData[idx].(runtime_t).Time)
+			keys = append(keys, __key)
+
+			if int(runtime_o.Time) > max {
+				max = int(runtime_o.Time)
 			}
 			itemsProcessed++
-			if itemsProcessed >= showItems {
+		}
+
+		processed := 0
+		for _, runtime_o := range __processesWithRuntime.Values() {
+			if processed > showItems {
 				break
 			}
+			processElement(runtime_o.(runtime_t))
+			processed += 1
 		}
+
+		logger.Info(fmt.Sprintf("keys : %v, vals: %v", keys, values))
+
 		labelOptions := barchart.Labels(keys)
 		colorOptions := barchart.BarColors(barColors)
 		if err := bc.Values(values, max, labelOptions, colorOptions); err != nil {

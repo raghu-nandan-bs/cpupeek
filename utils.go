@@ -29,6 +29,7 @@ func cpuCount() int {
 var processesWithRuntime = make(chan *treebidimap.Map, 2)
 
 type runtime_t struct {
+	pid   uint32
 	comm  string
 	cpuID uint16
 	Time  uint64
@@ -65,13 +66,15 @@ func processData(processRuntimeMap *libbpfgo.BPFMap) {
 
 		for i := 0; i < numCpus*32; i = i + 32 {
 			runtimeInfo := extract(rawValue[i : i+32])
+			runtimeInfo.pid = pid
+
 			if runtimeInfo.Time == 0 {
 				continue
 			}
 			if trackPID > 0 {
 				storeByCPU(procs, runtimeInfo)
 			} else {
-				storeByProcess(pid, procs, runtimeInfo)
+				storeByProcess(procs, runtimeInfo)
 			}
 		}
 		processRuntimeMap.DeleteKey(unsafe.Pointer(&pid))
@@ -97,18 +100,17 @@ func extract(rawValue []byte) runtime_t {
 }
 
 func storeByProcess(
-	pid uint32,
 	mapStore *treebidimap.Map,
 	runtimeInfo runtime_t,
 ) {
-	currentValue, exists := mapStore.Get(pid)
+	currentValue, exists := mapStore.Get(runtimeInfo.pid)
 	if !exists {
-		mapStore.Put(pid, runtimeInfo)
+		mapStore.Put(runtimeInfo.pid, runtimeInfo)
 		return
 	}
 	updatedValue := currentValue.(runtime_t)
 	updatedValue.Time += runtimeInfo.Time
-	mapStore.Put(pid, updatedValue)
+	mapStore.Put(runtimeInfo.pid, updatedValue)
 }
 
 func storeByCPU(

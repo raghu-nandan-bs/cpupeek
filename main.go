@@ -45,7 +45,7 @@ func init() {
 	flag.Int64Var(&trackCPU, "cpu", -1, "cpu to track")
 	flag.BoolVar(&trueScale, "true-scale", false, "scale the barchart to 1s (y axis)")
 	flag.StringVar(&logFile, "log", "cpupeek.log", "log file to write to")
-	flag.IntVar(&showItems, "show-items", 20, "number of items to show in the barchart")
+	flag.IntVar(&showItems, "show-items", 15, "number of items to show in the barchart")
 	flag.DurationVar(&refreshInterval, "interval", 1*time.Second, "how often should the screen refresh?")
 
 	flag.Parse()
