@@ -98,11 +98,12 @@ func procsTotalTimePlotter(ctx context.Context, bc *barchart.BarChart) {
 		}
 
 		processed := 0
-		for _, runtime_o := range __processesWithRuntime.Values() {
+		objects := __processesWithRuntime.Values()
+		for i := range objects {
 			if processed > showItems {
 				break
 			}
-			processElement(runtime_o.(runtime_t))
+			processElement(objects[len(objects)-i-1].(runtime_t))
 			processed += 1
 		}
 
