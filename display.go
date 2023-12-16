@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/emirpasic/gods/maps/treebidimap"
@@ -16,12 +15,7 @@ import (
 	"github.com/mum4k/termdash/widgets/barchart"
 )
 
-var max int = 1 // 1 * 1000 * 1000 * 1000 // max value for the barchart
-var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 -]+`)
-
-func clearString(str string) string {
-	return nonAlphanumericRegex.ReplaceAllString(str, "")
-}
+var max int = 1
 
 func displayChart(plottingFunction func(ctx context.Context, bc *barchart.BarChart)) {
 	t, err := tcell.New()
