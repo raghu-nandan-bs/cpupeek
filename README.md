@@ -24,7 +24,8 @@ This app uses `ebpf`.
 ## Installation
 
 ```
-wget https://github.com/raghu-nandan-bs/cpupeek/raw/main/release/cpupeek-$(uname -m) -O cpupeek
+wget https://github.com/raghu-nandan-bs/cpupeek/raw/main/release/cpupeek-$(uname -m) -O cpupeek \
+ && chmod +x cpupeek
 ```
 
 ## Run
