@@ -30,7 +30,7 @@ wget https://github.com/raghu-nandan-bs/cpupeek/raw/main/release/cpupeek-$(uname
 ## Run
 
 ```
-./cpupeek
+sudo ./cpupeek
 
 ```
 
@@ -38,7 +38,7 @@ wget https://github.com/raghu-nandan-bs/cpupeek/raw/main/release/cpupeek-$(uname
 ## Options
 
 ```
-./cpupeek --help
+sudo ./cpupeek --help
 Usage of ./cpupeek:
   -cpu int
     	cpu to track (default -1)
