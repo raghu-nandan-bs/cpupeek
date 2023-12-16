@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/binary"
-	"fmt"
 	"unsafe"
 
 	"github.com/aquasecurity/libbpfgo"
@@ -66,11 +65,13 @@ func processData(processRuntimeMap *libbpfgo.BPFMap) {
 
 		for i := 0; i < numCpus*32; i = i + 32 {
 			runtimeInfo := extract(rawValue[i : i+32])
-			runtimeInfo.comm = fmt.Sprintf("%d-%s", pid, runtimeInfo.comm) // preserve uniquess
+			if runtimeInfo.Time == 0 {
+				continue
+			}
 			if trackPID > 0 {
 				storeByCPU(procs, runtimeInfo)
 			} else {
-				storeByProcess(procs, runtimeInfo)
+				storeByProcess(pid, procs, runtimeInfo)
 			}
 		}
 		processRuntimeMap.DeleteKey(unsafe.Pointer(&pid))
@@ -96,17 +97,18 @@ func extract(rawValue []byte) runtime_t {
 }
 
 func storeByProcess(
+	pid uint32,
 	mapStore *treebidimap.Map,
 	runtimeInfo runtime_t,
 ) {
-	currentValue, exists := mapStore.Get(runtimeInfo.comm)
+	currentValue, exists := mapStore.Get(pid)
 	if !exists {
-		mapStore.Put(runtimeInfo.comm, runtimeInfo)
+		mapStore.Put(pid, runtimeInfo)
 		return
 	}
 	updatedValue := currentValue.(runtime_t)
 	updatedValue.Time += runtimeInfo.Time
-	mapStore.Put(runtimeInfo.comm, updatedValue)
+	mapStore.Put(pid, updatedValue)
 }
 
 func storeByCPU(
@@ -127,5 +129,5 @@ func newBTreeMap() *treebidimap.Map {
 	if trackPID > 0 {
 		return treebidimap.NewWith(utils.UInt16Comparator, sortRuntime)
 	}
-	return treebidimap.NewWith(utils.StringComparator, sortRuntime)
+	return treebidimap.NewWith(utils.UInt32Comparator, sortRuntime)
 }

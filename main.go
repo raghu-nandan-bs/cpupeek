@@ -15,6 +15,7 @@ import (
 	"github.com/aquasecurity/libbpfgo"
 	"io"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -32,16 +33,20 @@ var trackPID int64 = -1
 var trackCPU int64 = -1
 var trueScale bool = false
 var showItems int = 20
+var showPIDs bool = false
+var refreshInterval time.Duration = 1 * time.Second
 
 var logFile string
 var logger logf.Logger
 
 func init() {
 	flag.Int64Var(&trackPID, "pid", -1, "pid to track")
+	flag.BoolVar(&showPIDs, "show-pids", false, "display process id instead of their names.")
 	flag.Int64Var(&trackCPU, "cpu", -1, "cpu to track")
-	flag.BoolVar(&trueScale, "true-scale", false, "scale the barchart to 1s")
+	flag.BoolVar(&trueScale, "true-scale", false, "scale the barchart to 1s (y axis)")
 	flag.StringVar(&logFile, "log", "cpupeek.log", "log file to write to")
 	flag.IntVar(&showItems, "show-items", 20, "number of items to show in the barchart")
+	flag.DurationVar(&refreshInterval, "interval", 1*time.Second, "how often should the screen refresh?")
 
 	flag.Parse()
 
@@ -64,6 +69,13 @@ func init() {
 	// if trueScale is enabled, max should be 1s
 	if trueScale {
 		max = 1000000000
+	}
+
+	bpfLogFile := strings.Replace(logFile, ".log", ".bpf.log", -1)
+	bpfLogFileStream, err := os.OpenFile(bpfLogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	os.Stdout = bpfLogFileStream
+	if err != nil {
+		panic(err)
 	}
 
 }
@@ -102,7 +114,9 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("failed to attach program (%s): %v", prog.Name(), err))
 	}
+
 	go helpers.TracePipeListen()
+
 	run(module)
 
 }
@@ -113,7 +127,7 @@ func run(module *libbpfgo.Module) {
 	if err != nil {
 		panic(err)
 	}
-	timer := time.NewTicker(1 * time.Second)
+	timer := time.NewTicker(refreshInterval)
 	go func() {
 		for {
 			select {

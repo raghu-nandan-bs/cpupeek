@@ -23,4 +23,4 @@ RUN make clean && \
 # Build arm64
 RUN make clean && \
     make cpupeek GOOS=linux GOARCH=arm64 CC=aarch64-linux-gnu-gcc CLANG=clang-15 && \
-    cp cpupeek release/cpupeek-arm64
+    cp cpupeek release/cpupeek-aarch64

@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/emirpasic/gods/maps/treebidimap"
 	"github.com/mum4k/termdash"
+	"github.com/mum4k/termdash/cell"
 	"github.com/mum4k/termdash/container"
 	"github.com/mum4k/termdash/linestyle"
 	"github.com/mum4k/termdash/terminal/tcell"
@@ -68,7 +70,9 @@ func procsTotalTimePlotter(ctx context.Context, bc *barchart.BarChart) {
 		var key string
 		var keys []string
 		var values []int
+		var barColors []cell.Color
 		procData := __processesWithRuntime.Values()
+		pids := __processesWithRuntime.Keys()
 
 		itemsProcessed := 0
 		for i := range procData {
@@ -76,13 +80,18 @@ func procsTotalTimePlotter(ctx context.Context, bc *barchart.BarChart) {
 			idx := len(procData) - i - 1
 			runtime := int(procData[idx].(runtime_t).Time)
 
+			barColors = append(barColors, getColor(runtime))
+
 			values = append(values, runtime)
 
 			if trackPID > 0 {
 				key = fmt.Sprintf("%d", procData[idx].(runtime_t).cpuID)
-				logger.Debug("key: " + key)
 			} else {
-				key = clearString(procData[idx].(runtime_t).comm)
+				if showPIDs {
+					key = fmt.Sprintf("%d", pids[idx])
+				} else {
+					key = strings.Replace(procData[idx].(runtime_t).comm, "\x00", "", -1)
+				}
 			}
 			key = key
 			keys = append(keys, key)
@@ -95,8 +104,8 @@ func procsTotalTimePlotter(ctx context.Context, bc *barchart.BarChart) {
 			}
 		}
 		labelOptions := barchart.Labels(keys)
-
-		if err := bc.Values(values, max, labelOptions); err != nil {
+		colorOptions := barchart.BarColors(barColors)
+		if err := bc.Values(values, max, labelOptions, colorOptions); err != nil {
 			panic(err)
 		}
 		select {
@@ -105,5 +114,17 @@ func procsTotalTimePlotter(ctx context.Context, bc *barchart.BarChart) {
 		default:
 			continue
 		}
+	}
+}
+
+func getColor(value int) cell.Color {
+	/*ballpark numbers, @TODO re-adjust colors based on overall load*/
+	total := int(refreshInterval)
+	if value <= total/5 {
+		return cell.ColorGreen
+	} else if value > total/5 && value <= total/20 {
+		return cell.ColorOlive
+	} else {
+		return cell.ColorRed
 	}
 }
